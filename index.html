@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ayush Kumar — GenAI Engineer · Interactive 3D Portfolio</title>
+<meta name="description" content="Ayush Kumar — GenAI engineer and MSc Advanced Computer Science student at the University of Sheffield. Explore my work on a 3D desk: click the monitors, pull the lamp, play the controller.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ayush Kumar — GenAI Engineer">
+<meta property="og:description" content="An interactive 3D desk portfolio — click the monitors to explore projects, pull the lamp for night mode, and yes, the controller plays Breakout.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ayush Kumar — GenAI Engineer">
+<meta name="twitter:description" content="An interactive 3D desk portfolio. The controller plays Breakout.">
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="%231c1813"/><text x="32" y="45" font-family="monospace" font-size="38" font-weight="bold" text-anchor="middle" fill="%23ffb347">A</text></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  body {
+    --ink: #1c1813;
+    --paper: #ece6d8;
+    --card: #f4efe4;
+    --card-hover: #fbf7ec;
+    --line: rgba(28, 24, 19, 0.16);
+    --line-strong: rgba(28, 24, 19, 0.45);
+    --dim: rgba(28, 24, 19, 0.55);
+    --red: #d4513f;
+    --green: #2e7d5b;
+    --blue: #2f5fa8;
+    --tip-bg: rgba(236, 230, 216, 0.88);
+  }
+  body.night {
+    --ink: #e9e3d4;
+    --paper: #131216;
+    --card: #1b1a20;
+    --card-hover: #232129;
+    --line: rgba(233, 227, 212, 0.14);
+    --line-strong: rgba(233, 227, 212, 0.4);
+    --dim: rgba(233, 227, 212, 0.5);
+    --red: #ff7a5c;
+    --green: #4fd6a0;
+    --blue: #7aa5ff;
+    --tip-bg: rgba(19, 18, 22, 0.85);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: var(--paper); }
+  body { font-family: 'IBM Plex Mono', monospace; color: var(--ink); transition: background 0.8s; }
+
+  #scene { position: fixed; inset: 0; display: block; cursor: default; }
+  #scene.hoverable { cursor: pointer; }
+
+  /* ---------- grain + vignette ---------- */
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background: radial-gradient(ellipse at 50% 45%, transparent 60%, rgba(10,8,5,0.32) 100%);
+  }
+  .grain {
+    position: fixed; inset: -50%; width: 200%; height: 200%;
+    pointer-events: none; z-index: 6; opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grain 0.6s steps(4) infinite;
+  }
+  @keyframes grain {
+    0% { transform: translate(0,0); } 25% { transform: translate(-2%,3%); }
+    50% { transform: translate(3%,-2%); } 75% { transform: translate(-3%,-3%); }
+    100% { transform: translate(2%,2%); }
+  }
+
+  /* ---------- HUD ---------- */
+  .hud { position: fixed; z-index: 10; pointer-events: none; transition: color 0.8s; }
+  #brand {
+    top: 32px; left: 38px;
+    opacity: 0; animation: fadeUp 1.2s 0.8s ease forwards;
+  }
+  #brand h1 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: clamp(20px, 2.2vw, 30px); letter-spacing: 0.16em;
+  }
+  #brand p { font-size: 11px; letter-spacing: 0.3em; color: var(--dim); margin-top: 4px; text-transform: uppercase; }
+  #brand .dot { color: var(--red); }
+
+  #hint {
+    bottom: 36px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--dim); white-space: nowrap;
+    opacity: 0; animation: fadeUpC 1.2s 1.6s ease forwards;
+    transition: opacity 0.5s ease;
+  }
+  #hint::before, #hint::after { content: "——"; margin: 0 14px; opacity: 0.4; }
+  body.in-section #hint, body.in-section #brand { opacity: 0 !important; transition: opacity 0.4s; animation: none; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeUpC {
+    from { opacity: 0; transform: translate(-50%, 14px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  /* ---------- hover tooltip ---------- */
+  #tip {
+    position: fixed; z-index: 12; pointer-events: none;
+    font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+    padding: 8px 14px; border: 1px solid var(--line-strong);
+    background: var(--tip-bg); backdrop-filter: blur(6px);
+    color: var(--ink);
+    opacity: 0; transition: opacity 0.18s ease; white-space: nowrap;
+    transform: translate(18px, -50%);
+  }
+  #tip .accent { display: inline-block; width: 6px; height: 6px; margin-right: 10px; vertical-align: 1px; }
+
+  /* ---------- section overlays ---------- */
+  .panel {
+    position: fixed; inset: 0; z-index: 20; overflow-y: auto;
+    opacity: 0; visibility: hidden; transition: opacity 0.55s ease, visibility 0.55s;
+    background:
+      radial-gradient(1100px 650px at 72% -8%, var(--glow, transparent), transparent 60%),
+      linear-gradient(color-mix(in srgb, var(--paper) 94%, transparent), color-mix(in srgb, var(--paper) 99%, transparent));
+    backdrop-filter: blur(10px);
+  }
+  .panel.open { opacity: 1; visibility: visible; }
+  .panel-inner { max-width: 980px; margin: 0 auto; padding: 110px 48px 90px; }
+
+  .panel .kicker {
+    font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 18px;
+  }
+  .panel .kicker::before { content: "▮ "; }
+  .panel h2 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: clamp(40px, 6.5vw, 84px); line-height: 0.95; letter-spacing: -0.01em;
+    margin-bottom: 14px;
+  }
+  .panel h2 .outline {
+    color: transparent; -webkit-text-stroke: 1.5px var(--ink);
+  }
+  .panel .lede { color: var(--dim); font-size: 14px; line-height: 1.9; max-width: 56ch; margin-bottom: 56px; }
+
+  .panel.open .reveal { opacity: 0; animation: fadeUp 0.7s ease forwards; }
+  .panel.open .reveal:nth-child(1) { animation-delay: 0.25s; }
+  .panel.open .reveal:nth-child(2) { animation-delay: 0.35s; }
+  .panel.open .reveal:nth-child(3) { animation-delay: 0.45s; }
+  .panel.open .reveal:nth-child(4) { animation-delay: 0.58s; }
+  .panel.open .reveal:nth-child(5) { animation-delay: 0.7s; }
+
+  #back {
+    position: fixed; top: 30px; left: 38px; z-index: 30;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink);
+    background: var(--paper); border: 1px solid var(--line-strong); padding: 12px 22px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+    cursor: pointer; opacity: 0; visibility: hidden;
+    transition: opacity 0.35s ease, visibility 0.35s ease, transform 0.35s ease, background 0.25s ease, color 0.25s ease;
+  }
+  #back:hover { background: var(--ink); color: var(--paper); }
+  body.in-section #back { opacity: 1; visibility: visible; }
+  /* tuck away while scrolling down through a section, slide back on scroll up */
+  body.in-section #back.tuck { opacity: 0; visibility: hidden; transform: translateY(-18px); pointer-events: none; }
+
+  /* projects */
+  .proj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .proj {
+    background: var(--card); padding: 34px 30px; position: relative; overflow: hidden;
+    transition: background 0.3s;
+  }
+  .proj:hover { background: var(--card-hover); }
+  .proj .num { position: absolute; top: 26px; right: 26px; font-size: 10px; color: var(--dim); letter-spacing: 0.2em; }
+  .proj h3 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 12px; }
+  .proj p { font-size: 12px; line-height: 1.8; color: var(--dim); margin-bottom: 20px; }
+  .proj .tags span {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    border: 1px solid var(--line); padding: 4px 9px; margin-right: 6px;
+    color: var(--dim);
+  }
+  .proj::after {
+    content: "↗"; position: absolute; bottom: 22px; right: 26px;
+    font-size: 16px; color: var(--accent); opacity: 0; transform: translate(-6px, 6px);
+    transition: all 0.3s ease;
+  }
+  .proj:hover::after { opacity: 1; transform: translate(0,0); }
+
+  /* about */
+  .stat-row { display: flex; gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: 56px; }
+  .stat { flex: 1; background: var(--card); padding: 26px 28px; }
+  .stat b { display: block; font-family: 'Syne', sans-serif; font-size: 34px; font-weight: 800; color: var(--accent); }
+  .stat span { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim); }
+  .skills { display: flex; flex-wrap: wrap; gap: 10px; }
+  .skills span {
+    font-size: 11px; letter-spacing: 0.14em; padding: 10px 18px;
+    border: 1px solid var(--line-strong); transition: all 0.25s;
+  }
+  .skills span:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+  .about-text { font-size: 14px; line-height: 2.1; color: var(--ink); opacity: 0.85; max-width: 62ch; margin-bottom: 52px; }
+  .about-text em { color: var(--accent); font-style: normal; font-weight: 500; }
+
+  /* contact */
+  .contact-big {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: clamp(26px, 4.4vw, 54px); line-height: 1.15;
+    text-decoration: none; color: var(--ink); display: inline-block;
+    border-bottom: 3px solid var(--accent); padding-bottom: 8px; margin-bottom: 64px;
+    transition: color 0.3s;
+  }
+  .contact-big:hover { color: var(--accent); }
+  .links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .links a {
+    background: var(--card); padding: 26px 28px; text-decoration: none; color: var(--ink);
+    font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: all 0.25s;
+  }
+  .links a small { color: var(--dim); font-size: 10px; letter-spacing: 0.1em; text-transform: none; }
+  .links a:hover { background: var(--accent); color: #fff; }
+  .links a:hover small { color: rgba(255,255,255,0.8); }
+
+  /* section accents */
+  #panel-projects { --accent: var(--red);   --glow: color-mix(in srgb, var(--red) 12%, transparent); }
+  #panel-about    { --accent: var(--green); --glow: color-mix(in srgb, var(--green) 12%, transparent); }
+  #panel-contact  { --accent: var(--blue);  --glow: color-mix(in srgb, var(--blue) 12%, transparent); }
+  #panel-resume   { --accent: #b8862e;      --glow: color-mix(in srgb, #b8862e 12%, transparent); }
+  body.night #panel-resume { --accent: #e3aa4a; }
+
+  /* sound toggle */
+  #mute {
+    position: fixed; bottom: 30px; left: 38px; z-index: 11;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.24em;
+    text-transform: uppercase; color: var(--dim);
+    background: none; border: 1px solid var(--line); padding: 9px 16px;
+    cursor: pointer; transition: all 0.3s;
+  }
+  #mute:hover { color: var(--ink); border-color: var(--line-strong); }
+  body.in-section #mute { opacity: 0; pointer-events: none; }
+
+  /* ---------- mobile fallback: plain stacked sections ---------- */
+  body.mobile { overflow-y: auto; }
+  body.mobile #scene, body.mobile #tip, body.mobile #back, body.mobile #mute,
+  body.mobile #hint, body.mobile .vignette { display: none; }
+  body.mobile #brand { position: static; padding: 54px 28px 8px; animation: none; opacity: 1; }
+  body.mobile .panel {
+    position: static; inset: auto; opacity: 1; visibility: visible;
+    overflow: visible; backdrop-filter: none;
+    transition: none;   /* show instantly — never depend on a load-time fade */
+  }
+  body.mobile .panel .reveal { opacity: 1 !important; animation: none !important; }
+  body.mobile .panel-inner { padding: 56px 28px; }
+
+  /* loading veil */
+  #veil {
+    position: fixed; inset: 0; z-index: 50; background: var(--paper);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.9s ease; pointer-events: none;
+  }
+  #veil span { font-size: 10px; letter-spacing: 0.5em; text-transform: uppercase; color: var(--dim); animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+
+  @media (max-width: 760px) {
+    .proj-grid, .links { grid-template-columns: 1fr; }
+    .stat-row { flex-direction: column; }
+    .panel-inner { padding: 100px 26px 70px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<div class="hud" id="brand">
+  <h1>AYUSH<span class="dot">.</span></h1>
+  <p>genai engineer · sheffield, uk</p>
+</div>
+<div class="hud" id="hint">click a screen · pull the lamp · the controller works</div>
+<div id="tip"><span class="accent"></span><span id="tip-text"></span></div>
+<button id="mute">sound: on</button>
+
+<button id="back">← back to desk</button>
+
+<!-- ============ PROJECTS (center monitor) ============ -->
+<section class="panel" id="panel-projects">
+  <div class="panel-inner">
+    <div class="reveal kicker">main display — selected work</div>
+    <h2 class="reveal">PROJECTS<br><span class="outline">SHIPPED.</span></h2>
+    <p class="reveal lede">Things I've designed, broken, rebuilt and shipped. Each one taught me something I couldn't have learned from a tutorial.</p>
+    <div class="reveal proj-grid">
+      <div class="proj">
+        <span class="num">001</span>
+        <h3>PickR — Conversational Recommendation (RAG)</h3>
+        <p>Multi-stage LLM pipeline for first-time-buyer product discovery: Claude classifies intent per turn, extracts JSON-typed slots (budget, use case, category), conditions responses on retrieved product context, and generates schema-constrained "Why this?" explanations. Live on Vercel + Render with ~10 test users.</p>
+        <div class="tags"><span>Claude API</span><span>RAG</span><span>FastAPI</span><span>Next.js</span></div>
+      </div>
+      <div class="proj">
+        <span class="num">002</span>
+        <h3>IntelliChess — Neural Minimax Engine</h3>
+        <p>Chess engine pairing classic Minimax search with a PyTorch evaluation model, exported to ONNX and served in a C# runtime — cross-platform model serialization and latency vs accuracy trade-offs benchmarked across configurations.</p>
+        <div class="tags"><span>PyTorch</span><span>ONNX</span><span>C#</span></div>
+      </div>
+      <div class="proj">
+        <span class="num">003</span>
+        <h3>CNN Lung Cancer Detection</h3>
+        <p>Systematic benchmark of five CNN architectures on NIH medical imaging with ablation studies — confusion-matrix error analysis fed back into architectural changes, reaching 89.15% accuracy with documented methodology.</p>
+        <div class="tags"><span>TensorFlow</span><span>NIH imaging</span><span>Evaluation</span></div>
+      </div>
+      <div class="proj">
+        <span class="num">004</span>
+        <h3>Indian Sign Language Recognition</h3>
+        <p>Real-time classification of 1,000+ depth-sensor motion sequences at 90.68% accuracy — multimodal input processing with failure-mode analysis and iterative refinement of the pipeline.</p>
+        <div class="tags"><span>Python</span><span>OpenCV</span><span>Real-time</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABOUT (vertical monitor) ============ -->
+<section class="panel" id="panel-about">
+  <div class="panel-inner">
+    <div class="reveal kicker">vertical display — the human</div>
+    <h2 class="reveal">ABOUT<br><span class="outline">ME.</span></h2>
+    <p class="reveal about-text">
+      I'm Ayush Kumar — an MSc Advanced Computer Science student at the
+      <em>University of Sheffield</em> who designs, builds and ships production GenAI systems:
+      <em>RAG pipelines</em>, structured LLM outputs under <em>JSON schema constraints</em>,
+      and the evaluation that keeps them honest. Published at <em>IEEE ICBDML 2024</em>.
+      Strong Python and SQL, with real deployment experience — FastAPI, Docker, CI/CD,
+      and models served to real users at sub-second latency.
+    </p>
+    <div class="reveal stat-row">
+      <div class="stat"><b>MSc</b><span>advanced cs · sheffield</span></div>
+      <div class="stat"><b>IEEE</b><span>published · icbdml 2024</span></div>
+      <div class="stat"><b>90%+</b><span>model accuracy in prod</span></div>
+    </div>
+    <div class="reveal skills">
+      <span>Python</span><span>SQL</span><span>C++</span><span>C#</span><span>JavaScript</span>
+      <span>FastAPI</span><span>React / Next.js</span><span>PyTorch</span><span>TensorFlow</span>
+      <span>Hugging Face</span><span>ONNX</span><span>Docker</span><span>PostgreSQL</span>
+      <span>MongoDB</span><span>CI/CD</span><span>RAG / LLM Eval</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT (laptop) ============ -->
+<section class="panel" id="panel-contact">
+  <div class="panel-inner">
+    <div class="reveal kicker">laptop — say hello</div>
+    <h2 class="reveal">LET'S<br><span class="outline">TALK.</span></h2>
+    <p class="reveal lede">Open to interesting work, weird ideas, and good coffee. Based in Sheffield, UK. The fastest way to reach me:</p>
+    <a class="reveal contact-big" href="mailto:ayuxh.cs@gmail.com">ayuxh.cs@gmail.com</a>
+    <div class="reveal links">
+      <a href="https://github.com/ayushkr0" target="_blank" rel="noopener">GitHub <small>@ayushkr0</small></a>
+      <a href="https://linkedin.com/in/ayuxh" target="_blank" rel="noopener">LinkedIn <small>/in/ayuxh</small></a>
+      <a href="#">IEEE Paper <small>ICBDML 2024</small></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESUME (phone) ============ -->
+<section class="panel" id="panel-resume">
+  <div class="panel-inner">
+    <div class="reveal kicker">phone — the formal stuff</div>
+    <h2 class="reveal">RESUME,<br><span class="outline">ON PAPER.</span></h2>
+    <p class="reveal lede">Everything on this desk, compressed into one polite page. Grab a copy for your records — or skip the formality and just email me.</p>
+    <div class="reveal links">
+      <a href="Ayush%20jp%20Resume.pdf" download="Ayush Kumar Resume.pdf">Download PDF <small>one page, no fluff</small></a>
+      <a href="mailto:ayuxh.cs@gmail.com">Email me <small>fastest reply</small></a>
+      <a href="https://linkedin.com/in/ayuxh" target="_blank" rel="noopener">LinkedIn <small>/in/ayuxh</small></a>
+    </div>
+  </div>
+</section>
+
+<div id="veil"><span>booting workstation</span></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ============================================================
+   MOBILE FALLBACK — phones get the sections as a plain page
+============================================================ */
+const IS_MOBILE = (matchMedia('(pointer: coarse)').matches && innerWidth < 920) || innerWidth < 720;
+function showPlainPage() {
+  document.body.classList.add('mobile');
+  document.getElementById('veil')?.remove();
+}
+if (IS_MOBILE) {
+  showPlainPage();
+} else {
+  /* if WebGL or scene init fails, degrade to the readable plain page — never a blank screen */
+  try { bootDesk(); }
+  catch (e) { console.warn('3D scene unavailable, falling back to plain page:', e); showPlainPage(); }
+}
+
+function bootDesk() {
+/* ============================================================
+   RENDERER + SCENE — PBR pipeline, IBL environment, soft shadows
+============================================================ */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8a8172);
+scene.fog = new THREE.Fog(0x8a8172, 9, 22);
+
+/* image-based lighting: every material picks up real reflections */
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 50);
+
+/* camera sits close to the displays — desk fills the frame */
+const HOME_POS = new THREE.Vector3(0.28, 1.26, 1.78);
+const HOME_TGT = new THREE.Vector3(-0.02, 1.02, -0.7);
+const INTRO_POS = new THREE.Vector3(-1.1, 1.7, 3.4);
+camera.position.copy(INTRO_POS);
+const camTarget = HOME_TGT.clone();
+
+/* ============================================================
+   MATERIALS
+============================================================ */
+const matBlack = new THREE.MeshPhysicalMaterial({ color: 0x121215, roughness: 0.5, metalness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.5 });
+const matBezel = new THREE.MeshPhysicalMaterial({ color: 0x0d0d10, roughness: 0.32, metalness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+const matDeskTop = new THREE.MeshPhysicalMaterial({ color: 0x141417, roughness: 0.42, metalness: 0.2, clearcoat: 0.55, clearcoatRoughness: 0.4 });
+const matWallF = new THREE.MeshStandardMaterial({ color: 0x8e8474, roughness: 0.95 });
+const matWallL = new THREE.MeshStandardMaterial({ color: 0x7e7464, roughness: 0.95 });
+const matTrim = new THREE.MeshStandardMaterial({ color: 0xa89e8a, roughness: 0.9 });
+const matFloor = new THREE.MeshStandardMaterial({ color: 0x55514a, roughness: 1.0 });
+const matSilver = new THREE.MeshPhysicalMaterial({ color: 0xc4c7cd, roughness: 0.28, metalness: 0.9, clearcoat: 0.3 });
+const matMesh = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, roughness: 0.88 });
+const matBrass = new THREE.MeshPhysicalMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.85 });
+
+const RBox = (w, h, d, r = 0.006) => new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2));
+
+/* ============================================================
+   ROOM
+============================================================ */
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), matFloor);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), matWallF);
+wall.position.set(0, 5, -1.6);
+wall.receiveShadow = true;
+scene.add(wall);
+
+const wallL = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), matWallL);
+wallL.rotation.y = Math.PI / 2;
+wallL.position.set(-2.7, 5, 0);
+wallL.receiveShadow = true;
+scene.add(wallL);
+
+const rail = new THREE.Mesh(new THREE.BoxGeometry(30, 0.045, 0.03), matTrim);
+rail.position.set(0, 2.1, -1.585);
+scene.add(rail);
+const base1 = new THREE.Mesh(new THREE.BoxGeometry(30, 0.1, 0.02), matTrim);
+base1.position.set(0, 0.05, -1.59);
+scene.add(base1);
+
+/* window + curtain on the left wall */
+const windowGlowMat = new THREE.MeshBasicMaterial({ color: 0xfff3df });
+const windowGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.9), windowGlowMat);
+windowGlow.rotation.y = Math.PI / 2;
+windowGlow.position.set(-2.69, 1.75, 0.55);
+scene.add(windowGlow);
+const curtain = new THREE.Mesh(
+  RBox(0.07, 2.6, 0.65, 0.02),
+  new THREE.MeshStandardMaterial({ color: 0x3d3730, roughness: 1 })
+);
+curtain.position.set(-2.64, 1.7, -0.25);
+scene.add(curtain);
+
+/* ============================================================
+   DESK
+============================================================ */
+const desk = new THREE.Group();
+const top = new THREE.Mesh(RBox(1.9, 0.045, 0.78, 0.014), matDeskTop);
+top.position.y = 0.728;
+top.castShadow = top.receiveShadow = true;
+desk.add(top);
+[-0.82, 0.82].forEach(x => {
+  const legF = new THREE.Mesh(RBox(0.07, 0.72, 0.07, 0.012), matBlack);
+  legF.position.set(x, 0.36, 0.24);
+  legF.rotation.x = 0.12;
+  legF.castShadow = true;
+  desk.add(legF);
+  const legB = new THREE.Mesh(RBox(0.07, 0.72, 0.07, 0.012), matBlack);
+  legB.position.set(x, 0.36, -0.24);
+  legB.rotation.x = -0.12;
+  legB.castShadow = true;
+  desk.add(legB);
+  const foot = new THREE.Mesh(RBox(0.09, 0.03, 0.62, 0.012), matBlack);
+  foot.position.set(x, 0.015, 0);
+  desk.add(foot);
+});
+const crossbar = new THREE.Mesh(RBox(1.6, 0.1, 0.04, 0.012), matBlack);
+crossbar.position.set(0, 0.32, 0);
+desk.add(crossbar);
+desk.position.z = -0.55;
+scene.add(desk);
+
+const DESK_Y = 0.75;
+
+/* desk mat */
+const deskmat = new THREE.Mesh(
+  RBox(0.78, 0.008, 0.34, 0.004),
+  new THREE.MeshStandardMaterial({ color: 0x101014, roughness: 0.92 })
+);
+deskmat.position.set(-0.1, DESK_Y + 0.004, -0.56);
+deskmat.receiveShadow = true;
+scene.add(deskmat);
+
+/* ============================================================
+   KEYBOARD — individual keycaps
+============================================================ */
+const keyboard = new THREE.Group();
+const kbBase = new THREE.Mesh(
+  RBox(0.37, 0.024, 0.135, 0.008),
+  new THREE.MeshPhysicalMaterial({ color: 0x9b9ea6, roughness: 0.4, metalness: 0.6 })
+);
+kbBase.castShadow = true;
+keyboard.add(kbBase);
+const capDark = new THREE.MeshStandardMaterial({ color: 0x2a2c33, roughness: 0.65 });
+const capLight = new THREE.MeshStandardMaterial({ color: 0xdedbd2, roughness: 0.6 });
+const capAccent = new THREE.MeshStandardMaterial({ color: 0xd4513f, roughness: 0.6 });
+const capGeo = RBox(0.0205, 0.012, 0.0205, 0.004);
+for (let row = 0; row < 4; row++) {
+  for (let col = 0; col < 14; col++) {
+    const key = new THREE.Mesh(capGeo,
+      (row === 0 && col === 13) ? capAccent : (Math.random() < 0.22 ? capLight : capDark));
+    key.position.set(-0.168 + col * 0.0252, 0.017, -0.0405 + row * 0.025);
+    keyboard.add(key);
+  }
+}
+const spacebar = new THREE.Mesh(RBox(0.13, 0.012, 0.0205, 0.004), capDark);
+spacebar.position.set(-0.02, 0.017, 0.0595);
+keyboard.add(spacebar);
+[[-0.105, capLight], [0.08, capLight], [0.13, capDark], [0.155, capDark]].forEach(([x, m]) => {
+  const k = new THREE.Mesh(capGeo, m);
+  k.position.set(x, 0.017, 0.0595);
+  keyboard.add(k);
+});
+keyboard.position.set(-0.13, DESK_Y + 0.012, -0.52);
+keyboard.rotation.y = 0.015;
+scene.add(keyboard);
+
+/* mouse */
+const mouseBody = new THREE.Mesh(
+  new THREE.SphereGeometry(0.032, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+  matBlack
+);
+mouseBody.scale.set(0.85, 0.62, 1.25);
+mouseBody.position.set(0.17, DESK_Y + 0.008, -0.54);
+mouseBody.castShadow = true;
+scene.add(mouseBody);
+
+/* ============================================================
+   BOOKS — covers + visible page blocks
+============================================================ */
+/* small canvas-texture helper for props (books, tablet) */
+const propTexture = (w, h, draw) => {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+};
+
+const bookStack = new THREE.Group();
+const bookData = [
+  { c: '#b33a2c', w: 0.17, d: 0.23, h: 0.032, r: -0.08, title: 'DEEP LEARNING' },
+  { c: '#2c4a63', w: 0.16, d: 0.22, h: 0.028, r: 0.12, title: 'CLEAN CODE' },
+  { c: '#55633a', w: 0.15, d: 0.21, h: 0.026, r: -0.04, title: 'HANDS-ON ML' },
+];
+let stackY = 0;
+bookData.forEach((b, i) => {
+  const grp = new THREE.Group();
+  const cover = new THREE.Mesh(
+    RBox(b.w, b.h, b.d, 0.006),
+    new THREE.MeshStandardMaterial({ color: b.c, roughness: 0.75 })
+  );
+  cover.castShadow = true;
+  grp.add(cover);
+  const pages = new THREE.Mesh(
+    new THREE.BoxGeometry(b.w * 0.94, b.h * 0.62, b.d * 0.96),
+    new THREE.MeshStandardMaterial({ color: 0xe9e2d0, roughness: 0.95 })
+  );
+  pages.position.x = b.w * 0.035;
+  grp.add(pages);
+  /* spine label facing the room */
+  const spineTex = propTexture(512, 96, (x, w2, h2) => {
+    x.fillStyle = b.c; x.fillRect(0, 0, w2, h2);
+    x.fillStyle = 'rgba(240,234,218,0.92)';
+    x.fillRect(20, 18, 8, h2 - 36);
+    x.fillRect(w2 - 28, 18, 8, h2 - 36);
+    x.font = 'bold 42px monospace';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(b.title, w2 / 2, h2 / 2 + 2);
+  });
+  const spine = new THREE.Mesh(
+    new THREE.PlaneGeometry(b.w * 0.92, b.h * 0.72),
+    new THREE.MeshStandardMaterial({ map: spineTex, roughness: 0.8 })
+  );
+  spine.position.z = b.d / 2 + 0.0012;
+  grp.add(spine);
+  /* full cover design on the top book */
+  if (i === bookData.length - 1) {
+    const coverTex = propTexture(512, 720, (x, w2, h2) => {
+      x.fillStyle = b.c; x.fillRect(0, 0, w2, h2);
+      x.strokeStyle = 'rgba(240,234,218,0.85)'; x.lineWidth = 6;
+      x.strokeRect(32, 32, w2 - 64, h2 - 64);
+      x.fillStyle = 'rgba(240,234,218,0.95)';
+      x.font = 'bold 68px monospace'; x.textAlign = 'center';
+      x.fillText('HANDS-ON', w2 / 2, 220);
+      x.fillText('MACHINE', w2 / 2, 304);
+      x.fillText('LEARNING', w2 / 2, 388);
+      x.fillRect(140, 444, w2 - 280, 8);
+      x.font = '40px monospace';
+      x.fillText('A. GÉRON', w2 / 2, 536);
+      x.textAlign = 'left';
+    });
+    const topCover = new THREE.Mesh(
+      new THREE.PlaneGeometry(b.w * 0.86, b.d * 0.86),
+      new THREE.MeshStandardMaterial({ map: coverTex, roughness: 0.85 })
+    );
+    topCover.rotation.x = -Math.PI / 2;
+    topCover.position.y = b.h / 2 + 0.0012;
+    grp.add(topCover);
+  }
+  grp.position.y = stackY + b.h / 2;
+  grp.rotation.y = b.r;
+  stackY += b.h + 0.002;
+  bookStack.add(grp);
+});
+bookStack.position.set(-0.82, DESK_Y, -0.6);
+scene.add(bookStack);
+
+/* ============================================================
+   PLANTS — pots, trunks, leaf clusters
+============================================================ */
+function plant(x, z, scale, hue) {
+  const g = new THREE.Group();
+  const pot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.028, 0.022, 0.05, 18),
+    new THREE.MeshStandardMaterial({ color: 0xb06a4a, roughness: 0.8 })
+  );
+  pot.position.y = 0.025;
+  pot.castShadow = true;
+  g.add(pot);
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.027, 0.004, 8, 20),
+    new THREE.MeshStandardMaterial({ color: 0x9a5a3e, roughness: 0.8 })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.05;
+  g.add(rim);
+  const soil = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.024, 0.024, 0.006, 14),
+    new THREE.MeshStandardMaterial({ color: 0x2a201a, roughness: 1 })
+  );
+  soil.position.y = 0.048;
+  g.add(soil);
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.004, 0.006, 0.05, 8),
+    new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 })
+  );
+  trunk.position.y = 0.075;
+  g.add(trunk);
+  const leafMat = new THREE.MeshStandardMaterial({ color: hue, roughness: 0.9, flatShading: true });
+  [[0, 0.115, 0, 0.03], [0.018, 0.1, 0.008, 0.02], [-0.016, 0.105, -0.006, 0.022], [0.004, 0.14, -0.01, 0.018]].forEach(([lx, ly, lz, r]) => {
+    const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), leafMat);
+    leaf.position.set(lx, ly, lz);
+    leaf.castShadow = true;
+    g.add(leaf);
+  });
+  g.position.set(x, DESK_Y, z);
+  g.scale.setScalar(scale);
+  scene.add(g);
+}
+plant(-0.52, -0.86, 1.0, 0x3e7d44);
+plant(-0.42, -0.84, 1.35, 0x2f6b3c);
+plant(-0.33, -0.87, 0.85, 0x57904e);
+
+/* wooden figurine */
+const figBody = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.018, 0.04, 6, 14),
+  new THREE.MeshStandardMaterial({ color: 0x7d5a3c, roughness: 0.85 })
+);
+figBody.position.set(0.07, DESK_Y + 0.045, -0.88);
+figBody.castShadow = true;
+scene.add(figBody);
+const figHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.016, 14, 12),
+  new THREE.MeshStandardMaterial({ color: 0x8a684a, roughness: 0.85 })
+);
+figHead.position.set(0.07, DESK_Y + 0.095, -0.88);
+scene.add(figHead);
+
+/* tablet leaning on the monitor stand — lofi player on screen */
+const tablet = new THREE.Mesh(RBox(0.24, 0.17, 0.009, 0.006), matBezel);
+tablet.position.set(-0.2, DESK_Y + 0.085, -0.92);
+tablet.rotation.x = -0.26;
+tablet.castShadow = true;
+scene.add(tablet);
+const tabTex = propTexture(512, 352, (x, w2, h2) => {
+  x.fillStyle = '#101216'; x.fillRect(0, 0, w2, h2);
+  /* album art with a vinyl disc */
+  const g1 = x.createLinearGradient(36, 96, 196, 256);
+  g1.addColorStop(0, '#2e7d5b'); g1.addColorStop(1, '#2f5fa8');
+  x.fillStyle = g1; x.fillRect(36, 96, 160, 160);
+  x.fillStyle = 'rgba(16,18,22,0.85)';
+  x.beginPath(); x.arc(116, 176, 46, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#ece6d8';
+  x.beginPath(); x.arc(116, 176, 7, 0, Math.PI * 2); x.fill();
+  /* progress */
+  x.fillStyle = 'rgba(236,230,216,0.18)'; x.fillRect(226, 150, 240, 6);
+  x.fillStyle = '#4be3c3'; x.fillRect(226, 150, 98, 6);
+  x.beginPath(); x.arc(324, 153, 8, 0, Math.PI * 2); x.fill();
+  x.fillStyle = 'rgba(236,230,216,0.45)'; x.font = '16px monospace';
+  x.fillText('1:24', 226, 182);
+  x.textAlign = 'right'; x.fillText('3:47', 466, 182); x.textAlign = 'left';
+  /* prev / pause / next */
+  x.fillStyle = '#ece6d8';
+  x.beginPath(); x.moveTo(308, 206); x.lineTo(308, 242); x.lineTo(282, 224); x.fill();
+  x.fillRect(336, 202, 10, 42);
+  x.fillRect(354, 202, 10, 42);
+  x.beginPath(); x.moveTo(392, 206); x.lineTo(392, 242); x.lineTo(418, 224); x.fill();
+});
+const tabScreen = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.215, 0.145),
+  new THREE.MeshBasicMaterial({ map: tabTex })
+);
+tabScreen.position.copy(tablet.position).add(new THREE.Vector3(0, 0.0012, 0.0045));
+tabScreen.rotation.x = -0.26;
+scene.add(tabScreen);
+
+/* ============================================================
+   CHAIR — foreground hint, mostly out of frame
+============================================================ */
+const chair = new THREE.Group();
+for (let i = 0; i < 5; i++) {
+  const arm = new THREE.Mesh(RBox(0.05, 0.03, 0.3, 0.01), matBlack);
+  const a = (i / 5) * Math.PI * 2;
+  arm.position.set(Math.sin(a) * 0.14, 0.04, Math.cos(a) * 0.14);
+  arm.rotation.y = a;
+  chair.add(arm);
+  const caster = new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 10), matBlack);
+  caster.position.set(Math.sin(a) * 0.27, 0.032, Math.cos(a) * 0.27);
+  chair.add(caster);
+}
+const column = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.3, 14), matSilver);
+column.position.y = 0.2;
+chair.add(column);
+const seat = new THREE.Mesh(RBox(0.44, 0.06, 0.42, 0.02), matMesh);
+seat.position.y = 0.42;
+seat.castShadow = true;
+chair.add(seat);
+const lumbar = new THREE.Mesh(RBox(0.4, 0.16, 0.045, 0.015), matMesh);
+lumbar.position.set(0, 0.55, 0.2);
+lumbar.rotation.x = 0.08;
+lumbar.castShadow = true;
+chair.add(lumbar);
+const backPanel = new THREE.Mesh(RBox(0.38, 0.4, 0.04, 0.015), matMesh);
+backPanel.position.set(0, 0.85, 0.235);
+backPanel.rotation.x = 0.14;
+backPanel.castShadow = true;
+chair.add(backPanel);
+chair.position.set(-1.05, 0, 0.95);
+chair.rotation.y = 0.55;
+scene.add(chair);
+
+/* ============================================================
+   SCREEN TEXTURES — mini versions of the actual sections,
+   so flying in feels like the screen becomes the page
+============================================================ */
+const redraws = [];
+function screenTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const run = () => { draw(c.getContext('2d'), w, h); tex.needsUpdate = true; };
+  run();
+  redraws.push(run);
+  tex.userData.redraw = run;
+  tex.userData.canvas = c;
+  return tex;
+}
+/* redraw once webfonts are in, so Syne/Plex render on the screens */
+document.fonts.ready.then(() => redraws.forEach(r => r()));
+
+const PAPER = '#ece6d8', INK = '#1c1813', CARDBG = '#f4efe4', LINE = 'rgba(28,24,19,0.18)', DIMC = 'rgba(28,24,19,0.55)';
+
+function paperBase(x, w, h, accent) {
+  x.fillStyle = PAPER; x.fillRect(0, 0, w, h);
+  x.fillStyle = accent; x.fillRect(0, 0, w, 6);
+}
+function kicker(x, txt, accent, px, py) {
+  x.fillStyle = accent;
+  x.font = '500 17px IBM Plex Mono, monospace';
+  x.fillText('▮ ' + txt.toUpperCase(), px, py);
+}
+function card(x, px, py, cw, ch, title, accent, tagN) {
+  x.fillStyle = CARDBG; x.fillRect(px, py, cw, ch);
+  x.strokeStyle = LINE; x.lineWidth = 1.5; x.strokeRect(px, py, cw, ch);
+  x.fillStyle = INK; x.font = '700 24px Syne, sans-serif';
+  x.fillText(title, px + 22, py + 42);
+  x.fillStyle = DIMC;
+  x.fillRect(px + 22, py + 60, cw - 100, 7);
+  x.fillRect(px + 22, py + 76, cw - 150, 7);
+  for (let i = 0; i < tagN; i++) {
+    x.strokeStyle = LINE;
+    x.strokeRect(px + 22 + i * 74, py + ch - 36, 64, 20);
+  }
+  x.fillStyle = accent; x.font = '400 20px IBM Plex Mono, monospace';
+  x.fillText('↗', px + cw - 36, py + ch - 20);
+}
+
+/* center monitor — PROJECTS page with a live terminal strip */
+const CODE_LINES = [
+  'const me = new Developer("Ayush");',
+  'await me.ship({ quality: "high" });',
+  'while (alive) { learn(); build(); }',
+  'git commit -m "make it memorable"',
+];
+let typedLine = 0, typedChar = 0;
+const texProjects = screenTexture(1280, 720, (x, w, h) => {
+  paperBase(x, w, h, '#d4513f');
+  kicker(x, 'main display — selected work', '#d4513f', 70, 86);
+  x.fillStyle = INK; x.font = '800 88px Syne, sans-serif';
+  x.fillText('PROJECTS', 66, 176);
+  x.strokeStyle = INK; x.lineWidth = 2.5; x.font = '800 88px Syne, sans-serif';
+  x.strokeText('SHIPPED.', 66, 264);
+  const titles = [['PickR — RAG Pipeline', 'IntelliChess'], ['Lung Cancer CNN', 'ISL Recognition']];
+  for (let r = 0; r < 2; r++)
+    for (let c = 0; c < 2; c++)
+      card(x, 70 + c * 580, 300 + r * 180, 560, 164, titles[r][c], '#d4513f', 3);
+  /* live strip: typing code + real clock */
+  x.fillStyle = '#16140f'; x.fillRect(0, h - 46, w, 46);
+  x.font = '400 21px IBM Plex Mono, monospace';
+  x.fillStyle = '#7ee2a0';
+  const lineTxt = CODE_LINES[typedLine].slice(0, typedChar);
+  x.fillText('➜ ~ ' + lineTxt + (Math.floor(Date.now() / 450) % 2 ? '▌' : ''), 26, h - 15);
+  x.fillStyle = '#e3c27a'; x.textAlign = 'right';
+  const clk = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  x.fillText(clk + ' · ayush_os', w - 26, h - 15);
+  x.textAlign = 'left';
+});
+
+/* vertical monitor — ABOUT page */
+const texAbout = screenTexture(640, 1120, (x, w, h) => {
+  paperBase(x, w, h, '#2e7d5b');
+  kicker(x, 'vertical display — the human', '#2e7d5b', 44, 78);
+  x.fillStyle = INK; x.font = '800 96px Syne, sans-serif';
+  x.fillText('ABOUT', 40, 180);
+  x.strokeStyle = INK; x.lineWidth = 2.5; x.font = '800 96px Syne, sans-serif';
+  x.strokeText('ME.', 40, 276);
+  x.fillStyle = DIMC;
+  [0, 1, 2, 3].forEach(i => x.fillRect(44, 320 + i * 26, 420 - i * 60, 9));
+  /* stats */
+  const stats = [['MSc', 'SHEFFIELD'], ['IEEE', 'PUBLISHED'], ['90%+', 'ACCURACY']];
+  stats.forEach(([v, l], i) => {
+    const py = 460 + i * 120;
+    x.fillStyle = CARDBG; x.fillRect(44, py, 552, 104);
+    x.strokeStyle = LINE; x.strokeRect(44, py, 552, 104);
+    x.fillStyle = '#2e7d5b'; x.font = '800 52px Syne, sans-serif';
+    x.fillText(v, 70, py + 64);
+    x.fillStyle = DIMC; x.font = '500 18px IBM Plex Mono, monospace';
+    x.fillText(l, 200, py + 60);
+  });
+  /* skill chips */
+  const skills = ['PY', 'SQL', 'FASTAPI', 'RAG', 'TORCH', 'TF', 'ONNX', 'DOCKER'];
+  skills.forEach((s, i) => {
+    const px = 44 + (i % 4) * 140, py = 850 + Math.floor(i / 4) * 64;
+    x.strokeStyle = 'rgba(28,24,19,0.4)'; x.strokeRect(px, py, 124, 46);
+    x.fillStyle = INK; x.font = '500 18px IBM Plex Mono, monospace';
+    x.fillText(s, px + 20, py + 30);
+  });
+});
+
+/* laptop — CONTACT page */
+const texContact = screenTexture(1280, 800, (x, w, h) => {
+  paperBase(x, w, h, '#2f5fa8');
+  kicker(x, 'laptop — say hello', '#2f5fa8', 80, 100);
+  x.fillStyle = INK; x.font = '800 130px Syne, sans-serif';
+  x.fillText("LET'S", 74, 250);
+  x.strokeStyle = INK; x.lineWidth = 3; x.font = '800 130px Syne, sans-serif';
+  x.strokeText('TALK.', 74, 380);
+  x.fillStyle = INK; x.font = '700 44px Syne, sans-serif';
+  x.fillText('ayuxh.cs@gmail.com', 80, 500);
+  x.fillStyle = '#2f5fa8'; x.fillRect(80, 524, 470, 6);
+  ['GITHUB', 'LINKEDIN', 'IEEE \'24'].forEach((s, i) => {
+    const px = 80 + i * 380;
+    x.fillStyle = CARDBG; x.fillRect(px, 600, 360, 110);
+    x.strokeStyle = LINE; x.strokeRect(px, 600, 360, 110);
+    x.fillStyle = INK; x.font = '500 24px IBM Plex Mono, monospace';
+    x.fillText(s, px + 30, 665);
+    x.fillStyle = '#2f5fa8'; x.fillText('↗', px + 310, 665);
+  });
+});
+
+/* ============================================================
+   PS5 DUALSENSE — resting between monitor and laptop
+============================================================ */
+const padWhite = new THREE.MeshPhysicalMaterial({ color: 0xe9e9ee, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.4 });
+const padDark = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.6 });
+const pad = new THREE.Group();
+const padBody = new THREE.Mesh(RBox(0.115, 0.02, 0.052, 0.01), padWhite);
+padBody.position.y = 0.016;
+padBody.castShadow = true;
+pad.add(padBody);
+/* grips angled back and out */
+[-1, 1].forEach(sgn => {
+  const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.0165, 0.045, 6, 12), padWhite);
+  grip.position.set(sgn * 0.052, 0.017, 0.03);
+  grip.rotation.set(Math.PI / 2 - 0.35, 0, sgn * -0.45);
+  grip.castShadow = true;
+  pad.add(grip);
+});
+/* touchpad with the light strip around it */
+const touch = new THREE.Mesh(
+  RBox(0.042, 0.004, 0.03, 0.002),
+  new THREE.MeshStandardMaterial({ color: 0xdadae0, roughness: 0.5 })
+);
+touch.position.set(0, 0.028, -0.002);
+pad.add(touch);
+const lightStrip = new THREE.Mesh(
+  RBox(0.046, 0.002, 0.034, 0.001),
+  new THREE.MeshStandardMaterial({ color: 0x3a7bd5, emissive: 0x3a7bd5, emissiveIntensity: 1.2 })
+);
+lightStrip.position.set(0, 0.0265, -0.002);
+pad.add(lightStrip);
+/* thumbsticks */
+[-0.02, 0.02].forEach(sx => {
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.01, 12), padDark);
+  stem.position.set(sx, 0.03, 0.016);
+  pad.add(stem);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 12, 8), padDark);
+  cap.scale.y = 0.5;
+  cap.position.set(sx, 0.036, 0.016);
+  pad.add(cap);
+});
+/* d-pad cross */
+const dp1 = new THREE.Mesh(RBox(0.016, 0.004, 0.005, 0.002), padDark);
+dp1.position.set(-0.038, 0.028, -0.004);
+pad.add(dp1);
+const dp2 = new THREE.Mesh(RBox(0.005, 0.004, 0.016, 0.002), padDark);
+dp2.position.set(-0.038, 0.028, -0.004);
+pad.add(dp2);
+/* face buttons in a diamond */
+[[0.038, -0.0115], [0.0455, -0.004], [0.038, 0.0035], [0.0305, -0.004]].forEach(([bx, bz]) => {
+  const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.003, 10), padDark);
+  btn.position.set(bx, 0.0285, bz);
+  pad.add(btn);
+});
+/* display stand: weighted base, leaning post, hook under the controller's middle */
+const padStand = new THREE.Group();
+const psBase = new THREE.Mesh(RBox(0.085, 0.012, 0.065, 0.005), matBlack);
+psBase.position.y = 0.006;
+psBase.castShadow = true;
+padStand.add(psBase);
+const psPost = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.09, 14), matBlack);
+psPost.position.set(0, 0.055, -0.018);
+psPost.rotation.x = -0.18;
+psPost.castShadow = true;
+padStand.add(psPost);
+const psHook = new THREE.Mesh(RBox(0.016, 0.008, 0.045, 0.003), matBlack);
+psHook.position.set(0, 0.098, 0.002);
+padStand.add(psHook);
+padStand.position.set(0.36, DESK_Y, -0.76);
+padStand.rotation.y = -0.35;
+scene.add(padStand);
+/* controller hangs on the stand, leaning back, face to the camera.
+   YXZ order = yaw first, then pure lean — no sideways roll */
+pad.rotation.order = 'YXZ';
+pad.position.set(0.36, DESK_Y + 0.082, -0.755);
+pad.rotation.set(1.2, -0.35, 0);
+scene.add(pad);
+
+/* cables trailing from the monitors down behind the desk */
+const cableMat = new THREE.MeshStandardMaterial({ color: 0x0d0d10, roughness: 0.6 });
+[
+  [[0.02, 1.02, -0.93], [0.05, 0.8, -1.0], [0.02, 0.45, -1.04], [0.1, 0.02, -1.02]],
+  [[-0.64, 1.0, -0.86], [-0.6, 0.7, -1.0], [-0.55, 0.3, -1.05], [-0.45, 0.02, -1.03]],
+].forEach(pts => {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)));
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.005, 8), cableMat);
+  scene.add(tube);
+});
+
+/* city outside the window — fades in at night */
+const cityTex = screenTexture(256, 384, (x, w, h) => {
+  const sky = x.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#0a1020'); sky.addColorStop(1, '#16203a');
+  x.fillStyle = sky; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#e8e8d8'; x.beginPath(); x.arc(190, 70, 22, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#0a1020'; x.beginPath(); x.arc(198, 62, 19, 0, Math.PI * 2); x.fill();
+  for (let b = 0; b < 9; b++) {
+    const bw = 24 + (b * 37) % 30, bh = 90 + (b * 53) % 130, bx = b * 30 - 6;
+    x.fillStyle = '#070b16';
+    x.fillRect(bx, h - bh, bw, bh);
+    x.fillStyle = '#ffd98a';
+    for (let wy = h - bh + 8; wy < h - 10; wy += 14)
+      for (let wx = bx + 4; wx < bx + bw - 4; wx += 10)
+        if (Math.random() < 0.3) x.fillRect(wx, wy, 4, 6);
+  }
+});
+const nightCityMat = new THREE.MeshBasicMaterial({ map: cityTex, transparent: true, opacity: 0 });
+const nightCity = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.9), nightCityMat);
+nightCity.rotation.y = Math.PI / 2;
+nightCity.position.set(-2.683, 1.75, 0.55);
+scene.add(nightCity);
+
+/* ============================================================
+   WALL — framed prints + a clock that tells real time
+============================================================ */
+const frameMat = new THREE.MeshStandardMaterial({ color: 0x221d18, roughness: 0.6 });
+function hangArt(tex, w, h, x, y) {
+  const grp = new THREE.Group();
+  const frame = new THREE.Mesh(RBox(w + 0.035, h + 0.035, 0.02, 0.005), frameMat);
+  frame.castShadow = true;
+  grp.add(frame);
+  const art = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92 })
+  );
+  art.position.z = 0.0105;
+  grp.add(art);
+  grp.position.set(x, y, -1.588);
+  scene.add(grp);
+}
+const poster2 = screenTexture(320, 320, (x, w, h) => {
+  x.fillStyle = '#1c1813'; x.fillRect(0, 0, w, h);
+  x.strokeStyle = '#2e7d5b'; x.lineWidth = 3;
+  for (let r = 24; r < 150; r += 18) {
+    x.beginPath(); x.arc(160, 150, r, 0, Math.PI * 2); x.stroke();
+  }
+  x.fillStyle = '#ece6d8'; x.font = '500 16px IBM Plex Mono, monospace';
+  x.fillText('while(alive){ build() }', 50, 294);
+});
+hangArt(poster2, 0.3, 0.3, -0.35, 1.76);
+
+const clockGrp = new THREE.Group();
+const clockRim = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.009, 12, 40), matBlack);
+clockGrp.add(clockRim);
+const clockFaceTex = screenTexture(256, 256, (x) => {
+  x.clearRect(0, 0, 256, 256);
+  x.fillStyle = '#efe9da';
+  x.beginPath(); x.arc(128, 128, 126, 0, Math.PI * 2); x.fill();
+  x.fillStyle = '#1c1813';
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6;
+    const big = i % 3 === 0;
+    x.save();
+    x.translate(128 + Math.sin(a) * 108, 128 - Math.cos(a) * 108);
+    x.rotate(a);
+    x.fillRect(big ? -3 : -1.5, big ? -12 : -8, big ? 6 : 3, big ? 24 : 16);
+    x.restore();
+  }
+});
+const clockFace = new THREE.Mesh(
+  new THREE.CircleGeometry(0.082, 40),
+  new THREE.MeshStandardMaterial({ map: clockFaceTex, roughness: 0.9 })
+);
+clockGrp.add(clockFace);
+const hourHand = new THREE.Group();
+const hh = new THREE.Mesh(RBox(0.009, 0.046, 0.004, 0.002), matBlack);
+hh.position.y = 0.018;
+hourHand.add(hh);
+hourHand.position.z = 0.006;
+clockGrp.add(hourHand);
+const minHand = new THREE.Group();
+const mh = new THREE.Mesh(RBox(0.006, 0.068, 0.004, 0.002), matBlack);
+mh.position.y = 0.028;
+minHand.add(mh);
+minHand.position.z = 0.009;
+clockGrp.add(minHand);
+const secHand = new THREE.Group();
+const sh = new THREE.Mesh(
+  new THREE.BoxGeometry(0.0025, 0.075, 0.002),
+  new THREE.MeshBasicMaterial({ color: 0xd4513f })
+);
+sh.position.y = 0.03;
+secHand.add(sh);
+secHand.position.z = 0.011;
+clockGrp.add(secHand);
+const clockPin = new THREE.Mesh(new THREE.SphereGeometry(0.006, 10, 8), matBrass);
+clockPin.position.z = 0.012;
+clockGrp.add(clockPin);
+clockGrp.position.set(0.56, 1.8, -1.588);
+scene.add(clockGrp);
+function updateClock() {
+  const d = new Date();
+  const s = d.getSeconds() + d.getMilliseconds() / 1000;
+  const m = d.getMinutes() + s / 60;
+  const hr = (d.getHours() % 12) + m / 60;
+  hourHand.rotation.z = -hr / 12 * Math.PI * 2;
+  minHand.rotation.z = -m / 60 * Math.PI * 2;
+  secHand.rotation.z = -s / 60 * Math.PI * 2;
+}
+
+/* ============================================================
+   DISPLAYS
+============================================================ */
+const clickables = [];
+const sections = {};
+const screenLights = [];
+const screenMats = [];   /* screen materials — boot dark, flicker on */
+
+function addScreenLight(color, pos) {
+  const l = new THREE.PointLight(color, 0.3, 1.6, 2);
+  l.position.copy(pos);
+  scene.add(l);
+  screenLights.push(l);
+}
+
+/* ---- main monitor ---- */
+{
+  const W = 0.68, H = 0.385;
+  const g = new THREE.Group();
+  const bezel = new THREE.Mesh(RBox(W + 0.026, H + 0.026, 0.034, 0.008), matBezel);
+  bezel.castShadow = true;
+  g.add(bezel);
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, H),
+    new THREE.MeshBasicMaterial({ map: texProjects })
+  );
+  screen.position.z = 0.0178;
+  screen.userData = { section: 'projects', label: 'PROJECTS', accent: 0xd4513f, group: g };
+  g.add(screen);
+  clickables.push(screen);
+  screenMats.push(screen.material);
+  const lightbar = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.38, 16), matBezel);
+  lightbar.rotation.z = Math.PI / 2;
+  lightbar.position.set(0, H / 2 + 0.032, 0.004);
+  g.add(lightbar);
+  const webcam = new THREE.Mesh(RBox(0.05, 0.024, 0.05, 0.008), matBezel);
+  webcam.position.set(0.17, H / 2 + 0.028, 0);
+  g.add(webcam);
+  const neck = new THREE.Mesh(RBox(0.05, 0.2, 0.026, 0.008), matBezel);
+  neck.position.set(0, -H / 2 - 0.1, -0.014);
+  g.add(neck);
+  const mbase = new THREE.Mesh(RBox(0.26, 0.015, 0.18, 0.007), matBezel);
+  mbase.position.set(0, -H / 2 - 0.195, 0.015);
+  mbase.castShadow = true;
+  g.add(mbase);
+  /* sticky note on the bezel corner */
+  const noteTex = screenTexture(128, 128, (x) => {
+    x.fillStyle = '#f2d472'; x.fillRect(0, 0, 128, 128);
+    x.fillStyle = 'rgba(40,30,10,0.78)';
+    x.font = '700 20px IBM Plex Mono, monospace';
+    x.fillText('TODO:', 12, 36);
+    x.font = '400 17px IBM Plex Mono, monospace';
+    x.fillText('ship the', 12, 66);
+    x.fillText('portfolio ✓', 12, 92);
+  });
+  const note = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.052, 0.052),
+    new THREE.MeshStandardMaterial({ map: noteTex, roughness: 1 })
+  );
+  note.position.set(W / 2 - 0.02, -H / 2 + 0.045, 0.0185);
+  note.rotation.z = -0.07;
+  g.add(note);
+  g.position.set(0.02, DESK_Y + 0.2 + H / 2, -0.92);
+  scene.add(g);
+  sections.projects = { group: g, rotY: 0, dist: 0.6 };
+  addScreenLight(0xffe9d8, g.position.clone().add(new THREE.Vector3(0, 0, 0.3)));
+}
+
+/* ---- vertical monitor ---- */
+{
+  const W = 0.32, H = 0.56;
+  const g = new THREE.Group();
+  const bezel = new THREE.Mesh(RBox(W + 0.026, H + 0.026, 0.034, 0.008), matBezel);
+  bezel.castShadow = true;
+  g.add(bezel);
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, H),
+    new THREE.MeshBasicMaterial({ map: texAbout })
+  );
+  screen.position.z = 0.0178;
+  screen.userData = { section: 'about', label: 'ABOUT ME', accent: 0x2e7d5b, group: g };
+  g.add(screen);
+  clickables.push(screen);
+  screenMats.push(screen.material);
+  const neck = new THREE.Mesh(RBox(0.045, 0.16, 0.024, 0.008), matBezel);
+  neck.position.set(0, -H / 2 - 0.08, -0.014);
+  g.add(neck);
+  const mbase = new THREE.Mesh(RBox(0.2, 0.014, 0.16, 0.006), matBezel);
+  mbase.position.set(0, -H / 2 - 0.152, 0.012);
+  mbase.castShadow = true;
+  g.add(mbase);
+  const noteTex2 = screenTexture(128, 128, (x) => {
+    x.fillStyle = '#a9cce6'; x.fillRect(0, 0, 128, 128);
+    x.fillStyle = 'rgba(15,40,60,0.85)';
+    x.font = '400 17px IBM Plex Mono, monospace';
+    x.fillText('water the', 10, 52);
+    x.fillText('plants !!', 10, 78);
+  });
+  const note2 = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.048, 0.048),
+    new THREE.MeshStandardMaterial({ map: noteTex2, roughness: 1 })
+  );
+  note2.position.set(-W / 2 + 0.02, -H / 2 + 0.05, 0.0185);
+  note2.rotation.z = 0.09;
+  g.add(note2);
+  g.position.set(-0.64, DESK_Y + 0.16 + H / 2, -0.82);
+  g.rotation.y = 0.42;
+  scene.add(g);
+  sections.about = { group: g, rotY: 0.42, dist: 0.82 };
+  addScreenLight(0xdfffe9, g.position.clone().add(new THREE.Vector3(0.15, 0, 0.3)));
+}
+
+/* ---- laptop on stand ---- */
+{
+  const W = 0.34, H = 0.215;
+  const g = new THREE.Group();
+  /* solid wedge riser, planted flat on the desk */
+  const standBase = new THREE.Mesh(RBox(0.3, 0.012, 0.24, 0.005), matSilver);
+  standBase.position.set(0, 0.006, 0.005);
+  standBase.castShadow = true;
+  g.add(standBase);
+  const standBack = new THREE.Mesh(RBox(0.26, 0.07, 0.024, 0.005), matSilver);
+  standBack.position.set(0, 0.047, -0.105);
+  standBack.castShadow = true;
+  g.add(standBack);
+  const standDeck = new THREE.Mesh(RBox(0.3, 0.014, 0.25, 0.005), matSilver);
+  standDeck.position.set(0, 0.049, 0);
+  standDeck.rotation.x = 0.24;
+  standDeck.castShadow = true;
+  g.add(standDeck);
+  /* lip that keeps the laptop from sliding off */
+  const lip = new THREE.Mesh(RBox(0.26, 0.018, 0.01, 0.004), matSilver);
+  lip.position.set(0, 0.032, 0.122);
+  lip.rotation.x = 0.24;
+  g.add(lip);
+  const body = new THREE.Mesh(RBox(W + 0.01, 0.014, 0.23, 0.006), matSilver);
+  body.position.set(0, 0.063, 0.005);
+  body.rotation.x = 0.24;
+  body.castShadow = true;
+  g.add(body);
+  /* keyboard + trackpad drawn on the deck */
+  const kbTex = screenTexture(512, 340, (x, w2, h2) => {
+    x.clearRect(0, 0, w2, h2);
+    x.fillStyle = '#aeb1b9'; x.fillRect(0, 0, w2, h2);
+    x.fillStyle = '#1c1e24'; x.fillRect(36, 16, 440, 168);
+    for (let r = 0; r < 5; r++)
+      for (let c = 0; c < 14; c++) {
+        x.fillStyle = '#34373f';
+        x.fillRect(44 + c * 31, 24 + r * 32, 26, 25);
+      }
+    x.fillStyle = '#34373f'; x.fillRect(168, 152, 176, 25);
+    x.fillStyle = 'rgba(0,0,0,0.16)';
+    x.fillRect(166, 208, 180, 112);
+    x.strokeStyle = 'rgba(0,0,0,0.3)'; x.lineWidth = 2;
+    x.strokeRect(166, 208, 180, 112);
+  });
+  const deckTop = new THREE.Mesh(
+    new THREE.PlaneGeometry(W - 0.015, 0.205),
+    new THREE.MeshStandardMaterial({ map: kbTex, roughness: 0.7 })
+  );
+  deckTop.rotation.x = -Math.PI / 2 + 0.24;
+  deckTop.position.set(0, 0.0709, 0.0069);
+  g.add(deckTop);
+  const lid = new THREE.Group();
+  const lidBack = new THREE.Mesh(RBox(W + 0.01, H + 0.018, 0.008, 0.005), matSilver);
+  lid.add(lidBack);
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, H),
+    new THREE.MeshBasicMaterial({ map: texContact })
+  );
+  screen.position.z = 0.0048;
+  screen.userData = { section: 'contact', label: 'CONTACT', accent: 0x2f5fa8, group: g };
+  lid.add(screen);
+  clickables.push(screen);
+  screenMats.push(screen.material);
+  lid.position.set(0, 0.09 + H / 2, -0.098);
+  lid.rotation.x = 0.12;
+  g.add(lid);
+  g.position.set(0.66, DESK_Y, -0.72);
+  g.rotation.y = -0.5;
+  scene.add(g);
+  sections.contact = { group: g, rotY: -0.5, dist: 0.52, yOff: 0.09 + H / 2 };
+  addScreenLight(0xdfe9ff, g.position.clone().add(new THREE.Vector3(-0.15, 0.25, 0.25)));
+}
+
+/* ---- phone lying on the desk — RESUME ---- */
+const texResume = screenTexture(256, 512, (x, w, h) => {
+  x.fillStyle = PAPER; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#b8862e'; x.fillRect(0, 0, w, 5);
+  x.font = '500 13px IBM Plex Mono, monospace';
+  x.fillStyle = '#b8862e';
+  x.fillText('▮ THE FORMAL STUFF', 22, 48);
+  x.fillStyle = INK; x.font = '800 46px Syne, sans-serif';
+  x.fillText('RE-', 20, 112);
+  x.fillText('SUME.', 20, 160);
+  x.fillStyle = DIMC;
+  [0, 1, 2, 3, 4].forEach(i => x.fillRect(22, 204 + i * 26, 180 - (i % 3) * 40, 8));
+  x.fillStyle = CARDBG; x.fillRect(22, 362, 212, 56);
+  x.strokeStyle = LINE; x.strokeRect(22, 362, 212, 56);
+  x.fillStyle = INK; x.font = '500 16px IBM Plex Mono, monospace';
+  x.fillText('DOWNLOAD PDF ↓', 40, 396);
+  x.fillStyle = '#b8862e'; x.font = '400 13px IBM Plex Mono, monospace';
+  x.fillText('tap to open', 22, 462);
+});
+{
+  const g = new THREE.Group();
+  const pbody = new THREE.Mesh(RBox(0.08, 0.012, 0.16, 0.006), matBezel);
+  pbody.castShadow = true;
+  g.add(pbody);
+  const pscreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.071, 0.15),
+    new THREE.MeshBasicMaterial({ map: texResume })
+  );
+  pscreen.rotation.x = -Math.PI / 2;
+  pscreen.position.y = 0.0065;
+  pscreen.userData = { section: 'resume', label: 'RESUME', accent: 0xb8862e, group: g };
+  g.add(pscreen);
+  clickables.push(pscreen);
+  screenMats.push(pscreen.material);
+  g.position.set(0.38, DESK_Y + 0.006, -0.5);
+  g.rotation.y = 0.4;
+  scene.add(g);
+  sections.resume = { group: g, rotY: 0, dist: 0.5 };
+}
+
+/* fly-in poses */
+for (const id in sections) {
+  const s = sections[id];
+  const normal = new THREE.Vector3(Math.sin(s.rotY), 0, Math.cos(s.rotY));
+  const center = s.group.position.clone();
+  if (s.yOff) center.y += s.yOff;
+  s.camTgt = center;
+  s.camPos = center.clone().add(normal.multiplyScalar(s.dist));
+}
+/* the phone is read from above */
+{
+  const p = sections.resume.group.position;
+  sections.resume.camPos = new THREE.Vector3(p.x + 0.02, p.y + 0.5, p.z + 0.16);
+  sections.resume.camTgt = new THREE.Vector3(p.x, p.y, p.z - 0.01);
+}
+
+/* ============================================================
+   DESK LAMP — click to toggle day / night
+============================================================ */
+/* IKEA ÅRSTID-style: stepped brass base, straight pole, pleated white shade */
+const lamp = new THREE.Group();
+[[0.08, 0.014, 0], [0.062, 0.018, 0.014], [0.044, 0.02, 0.032], [0.027, 0.05, 0.052]].forEach(([r, h, y]) => {
+  const step = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r, h, 32), matBrass);
+  step.position.y = y + h / 2;
+  step.castShadow = true;
+  lamp.add(step);
+});
+const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.19, 16), matBrass);
+pole.position.y = 0.185;
+pole.castShadow = true;
+lamp.add(pole);
+const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.011, 0.04, 16), matBrass);
+socket.position.y = 0.295;
+lamp.add(socket);
+const bulbMat = new THREE.MeshStandardMaterial({
+  color: 0xfff2cf, emissive: 0xffd99a, emissiveIntensity: 0.15
+});
+const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.024, 16, 14), bulbMat);
+bulb.position.y = 0.34;
+lamp.add(bulb);
+/* pleated fabric shade — glows from inside at night */
+const shadeMat = new THREE.MeshStandardMaterial({
+  color: 0xf5f0e3, roughness: 0.95, side: THREE.DoubleSide,
+  emissive: 0xffdfae, emissiveIntensity: 0
+});
+const shade = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.06, 0.108, 0.16, 48, 1, true), shadeMat
+);
+shade.position.y = 0.345;
+lamp.add(shade);
+const rimMat = new THREE.MeshStandardMaterial({ color: 0xefe9da, roughness: 0.9 });
+const rimT = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.0035, 8, 40), rimMat);
+rimT.rotation.x = Math.PI / 2;
+rimT.position.y = 0.425;
+lamp.add(rimT);
+const rimB = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.0035, 8, 48), rimMat);
+rimB.rotation.x = Math.PI / 2;
+rimB.position.y = 0.265;
+lamp.add(rimB);
+const finial = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 10), matBrass);
+finial.position.y = 0.435;
+lamp.add(finial);
+/* front-left corner of the desk — always in frame */
+lamp.position.set(-0.84, DESK_Y, -0.42);
+scene.add(lamp);
+lamp.updateMatrixWorld(true);
+/* every lamp mesh is clickable */
+lamp.traverse(o => {
+  if (o.isMesh) {
+    o.userData = { lampToggle: true, label: 'DAY / NIGHT', accent: 0xc9a86a, group: lamp };
+    clickables.push(o);
+  }
+});
+/* the controller is clickable too — it starts Breakout */
+pad.traverse(o => {
+  if (o.isMesh) {
+    o.userData = { gameToggle: true, label: 'PLAY BREAKOUT', accent: 0x3a7bd5, group: pad };
+    clickables.push(o);
+  }
+});
+const lampLight = new THREE.PointLight(0xffc878, 0, 3.2, 1.7);
+lampLight.position.set(-0.84, DESK_Y + 0.33, -0.42);
+lampLight.castShadow = true;
+lampLight.shadow.bias = -0.0035;
+scene.add(lampLight);
+
+/* ---- pull chain: verlet rope hanging off the shade ---- */
+const CHAIN_N = 8, CHAIN_SEG = 0.019;
+const chainAnchor = lamp.localToWorld(new THREE.Vector3(0.052, 0.26, 0.052));
+const chainPts = [];
+for (let i = 0; i < CHAIN_N; i++) {
+  chainPts.push({
+    x: chainAnchor.x, y: chainAnchor.y - i * CHAIN_SEG, z: chainAnchor.z,
+    px: chainAnchor.x, py: chainAnchor.y - i * CHAIN_SEG, pz: chainAnchor.z
+  });
+}
+const chainBalls = new THREE.InstancedMesh(
+  new THREE.SphereGeometry(0.0048, 10, 8), matBrass, CHAIN_N
+);
+scene.add(chainBalls);
+const bead = new THREE.Mesh(new THREE.SphereGeometry(0.011, 14, 12), matBrass);
+bead.userData = { lampToggle: true, label: 'DAY / NIGHT', accent: 0xc9a86a, group: lamp };
+bead.castShadow = true;
+clickables.push(bead);
+scene.add(bead);
+
+const chainMtx = new THREE.Matrix4();
+let chainAcc = 0, chainLast = performance.now();
+function updateChain() {
+  const now = performance.now();
+  chainAcc += Math.min(now - chainLast, 50);
+  chainLast = now;
+  const DT = 1000 / 120, dt = DT / 1000;
+  while (chainAcc >= DT) {
+    chainAcc -= DT;
+    const sway = Math.sin(now * 0.0012) * 0.000012;
+    for (let i = 1; i < CHAIN_N; i++) {
+      const p = chainPts[i];
+      const vx = (p.x - p.px) * 0.985, vy = (p.y - p.py) * 0.985, vz = (p.z - p.pz) * 0.985;
+      p.px = p.x; p.py = p.y; p.pz = p.z;
+      p.x += vx + sway; p.y += vy - 9.8 * dt * dt; p.z += vz;
+    }
+    for (let k = 0; k < 3; k++) {
+      chainPts[0].x = chainAnchor.x; chainPts[0].y = chainAnchor.y; chainPts[0].z = chainAnchor.z;
+      for (let i = 1; i < CHAIN_N; i++) {
+        const a = chainPts[i - 1], b = chainPts[i];
+        let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+        const diff = (d - CHAIN_SEG) / d;
+        const wA = i === 1 ? 0 : 0.5, wB = i === 1 ? 1 : 0.5;
+        a.x += dx * diff * wA; a.y += dy * diff * wA; a.z += dz * diff * wA;
+        b.x -= dx * diff * wB; b.y -= dy * diff * wB; b.z -= dz * diff * wB;
+      }
+    }
+  }
+  for (let i = 0; i < CHAIN_N; i++) {
+    chainMtx.makeTranslation(chainPts[i].x, chainPts[i].y, chainPts[i].z);
+    chainBalls.setMatrixAt(i, chainMtx);
+  }
+  chainBalls.instanceMatrix.needsUpdate = true;
+  const tail = chainPts[CHAIN_N - 1];
+  bead.position.set(tail.x, tail.y - 0.008, tail.z);
+}
+function yankChain() {
+  for (let i = CHAIN_N - 3; i < CHAIN_N; i++) {
+    chainPts[i].py = chainPts[i].y + 0.055;
+    chainPts[i].px = chainPts[i].x - 0.012;
+  }
+}
+
+/* ---- synthesized switch click ---- */
+let actx;
+function switchSound(on) {
+  try {
+    actx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime;
+    /* mechanical click: short filtered noise burst */
+    const buf = actx.createBuffer(1, 1400, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / 220);
+    const n = actx.createBufferSource(); n.buffer = buf;
+    const nf = actx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = on ? 2600 : 1900; nf.Q.value = 1.2;
+    const ng = actx.createGain(); ng.gain.value = 0.5;
+    n.connect(nf).connect(ng).connect(actx.destination); n.start(t);
+    /* low thunk underneath */
+    const o = actx.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(on ? 320 : 240, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.12);
+  } catch (e) { /* audio blocked — toggle still works */ }
+}
+
+/* CRT pop for the boot-up flicker */
+function popSound(i) {
+  if (!actx || actx.state !== 'running') return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(140 + i * 30, t);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.18, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  o.connect(g).connect(actx.destination);
+  o.start(t); o.stop(t + 0.14);
+}
+
+/* ---- ambient layer: just mechanical keyboard typing, in bursts ---- */
+let soundOn = true, amb = null, playKey = () => {};
+function setupAmbient() {
+  if (amb || !actx) return;
+  const master = actx.createGain();
+  master.gain.value = 0;
+  master.connect(actx.destination);
+  amb = { master };
+  /* one keystroke — called per character as the code types on the screen */
+  playKey = soft => {
+    if (!soundOn || actx.state !== 'running') return;
+    const t = actx.currentTime;
+    const buf = actx.createBuffer(1, 700, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / 90);
+    const n = actx.createBufferSource(); n.buffer = buf;
+    const f = actx.createBiquadFilter(); f.type = 'bandpass';
+    f.frequency.value = soft ? 1700 : 2400 + Math.random() * 1400;
+    f.Q.value = 1.6;
+    const g = actx.createGain();
+    g.gain.value = soft ? 0.05 : 0.028 + Math.random() * 0.025;
+    n.connect(f).connect(g).connect(master);
+    n.start(t);
+    /* key bottoming out */
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.value = 120 + Math.random() * 60;
+    const og = actx.createGain();
+    og.gain.setValueAtTime(0.02, t);
+    og.gain.exponentialRampToValueAtTime(0.0008, t + 0.04);
+    o.connect(og).connect(master);
+    o.start(t); o.stop(t + 0.05);
+  };
+}
+/* browsers unlock audio on the first interaction */
+addEventListener('pointerdown', function firstGesture() {
+  removeEventListener('pointerdown', firstGesture);
+  try {
+    actx ??= new (window.AudioContext || window.webkitAudioContext)();
+    actx.resume();
+    setupAmbient();
+  } catch (e) {}
+});
+const muteBtn = document.getElementById('mute');
+muteBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  soundOn = !soundOn;
+  muteBtn.textContent = 'sound: ' + (soundOn ? 'on' : 'off');
+});
+
+/* ============================================================
+   LIGHTING + DAY/NIGHT
+============================================================ */
+const hemi = new THREE.HemisphereLight(0xfff4e0, 0x55504a, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
+sun.position.set(-3.2, 2.8, 1.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
+sun.shadow.radius = 6;
+sun.shadow.camera.left = -3; sun.shadow.camera.right = 3;
+sun.shadow.camera.top = 3; sun.shadow.camera.bottom = -1;
+scene.add(sun);
+const fill = new THREE.PointLight(0xffe8c8, 0.5, 8, 1.8);
+fill.position.set(1.8, 2.2, 1.6);
+scene.add(fill);
+
+/* dust in the light */
+const dustN = 120;
+const dustGeo = new THREE.BufferGeometry();
+const dustPos = new Float32Array(dustN * 3);
+for (let i = 0; i < dustN; i++) {
+  dustPos[i * 3] = -2.2 + Math.random() * 3.6;
+  dustPos[i * 3 + 1] = Math.random() * 2.4;
+  dustPos[i * 3 + 2] = -1 + Math.random() * 2.4;
+}
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+  color: 0xfff6e2, size: 0.006, transparent: true, opacity: 0.45,
+  blending: THREE.AdditiveBlending, depthWrite: false
+}));
+scene.add(dust);
+
+/* --- mode targets: every value eases toward these in the loop --- */
+const DAY = {
+  bg: new THREE.Color(0x8a8172), wallF: new THREE.Color(0x8e8474), wallL: new THREE.Color(0x7e7464),
+  floor: new THREE.Color(0x55514a), trim: new THREE.Color(0xa89e8a), window: new THREE.Color(0xfff3df),
+  sunC: new THREE.Color(0xfff1dc), sunI: 2.4, hemiI: 0.85, fillI: 0.5, lampI: 0,
+  bulbE: 0.15, shadeE: 0, envI: 0.55, screenL: 0.3, dustO: 0.45,
+  winN: 0,
+};
+const NIGHT = {
+  bg: new THREE.Color(0x111014), wallF: new THREE.Color(0x1d1b21), wallL: new THREE.Color(0x18161c),
+  floor: new THREE.Color(0x141318), trim: new THREE.Color(0x2e2b33), window: new THREE.Color(0x2a3652),
+  sunC: new THREE.Color(0x5a74b8), sunI: 0.25, hemiI: 0.12, fillI: 0.05, lampI: 5.5,
+  bulbE: 2.6, shadeE: 0.6, envI: 0.07, screenL: 0.85, dustO: 0.18,
+  winN: 1,
+};
+let isNight = false;
+let modeT = DAY;
+
+function toggleNight() {
+  isNight = !isNight;
+  modeT = isNight ? NIGHT : DAY;
+  document.body.classList.toggle('night', isNight);
+}
+/* visiting after 7pm (or before 7am)? start in night mode */
+{
+  const hr = new Date().getHours();
+  if (hr >= 19 || hr < 7) {
+    isNight = true;
+    modeT = NIGHT;
+    document.body.classList.add('night');
+  }
+}
+
+/* ============================================================
+   TWEENS
+============================================================ */
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function tween(dur, onUpdate, onDone) {
+  const t0 = performance.now();
+  (function step(now) {
+    const k = Math.min((now - t0) / dur, 1);
+    onUpdate(easeInOut(k));
+    if (k < 1) requestAnimationFrame(step);
+    else if (onDone) onDone();
+  })(performance.now());
+}
+function flyTo(pos, tgt, dur, onDone) {
+  const p0 = camera.position.clone(), t0 = camTarget.clone();
+  tween(dur, k => {
+    camera.position.lerpVectors(p0, pos, k);
+    camTarget.lerpVectors(t0, tgt, k);
+  }, onDone);
+}
+
+/* ============================================================
+   INTERACTION
+============================================================ */
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const tip = document.getElementById('tip');
+const tipText = document.getElementById('tip-text');
+const tipDot = tip.querySelector('.accent');
+let mode = 'intro';
+let hovered = null;
+const mouseSway = new THREE.Vector2();
+
+addEventListener('mousemove', e => {
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  mouseSway.set(ndc.x, ndc.y);
+  tip.style.left = e.clientX + 'px';
+  tip.style.top = e.clientY + 'px';
+});
+
+function pick() {
+  if (mode !== 'home') { setHover(null); return; }
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(clickables, false)[0];
+  setHover(hit ? hit.object : null);
+}
+function setHover(obj) {
+  if (obj === hovered) return;
+  if (hovered) hovered.userData.group.scale.setScalar(1);
+  hovered = obj;
+  if (hovered) {
+    if (!hovered.userData.lampToggle) hovered.userData.group.scale.setScalar(1.02);
+    tipText.textContent = hovered.userData.lampToggle
+      ? (isNight ? 'LIGHTS ON' : 'LIGHTS OFF')
+      : hovered.userData.label;
+    tipDot.style.background = '#' + hovered.userData.accent.toString(16).padStart(6, '0');
+    tip.style.opacity = 1;
+    canvas.classList.add('hoverable');
+  } else {
+    tip.style.opacity = 0;
+    canvas.classList.remove('hoverable');
+  }
+}
+
+addEventListener('click', () => {
+  if (suppressClick || mode !== 'home' || !hovered) return;
+  if (hovered.userData.lampToggle) {
+    yankChain();
+    switchSound(!isNight);
+    /* let the chain pull register before the lights change */
+    setTimeout(toggleNight, 90);
+    tipText.textContent = isNight ? 'LIGHTS ON' : 'LIGHTS OFF';
+    return;
+  }
+  if (hovered.userData.gameToggle) { startGame(); return; }
+  enterSection(hovered.userData.section);
+});
+
+const backBtn = document.getElementById('back');
+function enterSection(id) {
+  const s = sections[id];
+  mode = 'flying';
+  setHover(null);
+  document.body.classList.add('in-section');
+  flyTo(s.camPos, s.camTgt, 1300, () => {
+    const panel = document.getElementById('panel-' + id);
+    panel.scrollTop = 0;          /* start at the top, button visible */
+    backBtn.classList.remove('tuck');
+    panel.classList.add('open');
+    mode = 'section';
+  });
+}
+function exitSection() {
+  document.querySelectorAll('.panel.open').forEach(p => p.classList.remove('open'));
+  document.body.classList.remove('in-section');
+  backBtn.classList.remove('tuck');
+  mode = 'flying';
+  setTimeout(() => flyTo(HOME_POS, HOME_TGT, 1200, () => { mode = 'home'; }), 200);
+}
+backBtn.addEventListener('click', exitSection);
+addEventListener('keydown', e => { if (e.key === 'Escape' && mode === 'section') exitSection(); });
+
+/* hide the back button while scrolling down a section, reveal on scroll up */
+document.querySelectorAll('.panel').forEach(panel => {
+  let lastY = 0;
+  panel.addEventListener('scroll', () => {
+    const y = panel.scrollTop;
+    if (y < 40) backBtn.classList.remove('tuck');     /* near top — always show */
+    else if (y > lastY) backBtn.classList.add('tuck');     /* any downward move */
+    else if (y < lastY) backBtn.classList.remove('tuck');  /* any upward move */
+    lastY = y;
+  }, { passive: true });
+});
+
+/* ============================================================
+   BREAKOUT — click the DualSense, play on the main monitor
+============================================================ */
+let gameOn = false;
+const gKeys = { l: false, r: false };
+const game = {};
+function resetGame() {
+  game.px = 640; game.pw = 180;
+  game.bx = 640; game.by = 500; game.spd = 9;
+  game.vx = 4; game.vy = -8;
+  game.score = 0; game.lives = 3; game.over = '';
+  game.bricks = [];
+  const cols = ['#d4513f', '#b8862e', '#2e7d5b', '#2f5fa8'];
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 8; c++)
+      game.bricks.push({ x: 80 + c * 142, y: 120 + r * 44, w: 126, h: 32, col: cols[r], hit: false });
+}
+function startGame() {
+  resetGame();
+  gameOn = true;
+  mode = 'flying';
+  setHover(null);
+  const s = sections.projects;
+  flyTo(s.camTgt.clone().add(new THREE.Vector3(0, 0, 0.95)), s.camTgt, 1100, () => { mode = 'game'; });
+}
+function endGame() {
+  gameOn = false;
+  mode = 'flying';
+  texProjects.userData.redraw();
+  flyTo(HOME_POS, HOME_TGT, 1100, () => { mode = 'home'; });
+}
+function blip(f) {
+  if (!actx || actx.state !== 'running' || !soundOn) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.045, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+  o.connect(g).connect(actx.destination);
+  o.start(t); o.stop(t + 0.08);
+}
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') gKeys.l = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') gKeys.r = true;
+  if (mode !== 'game') return;
+  if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+  if (e.key === 'Escape') endGame();
+  if (game.over && (e.key === ' ' || e.key === 'Enter')) resetGame();
+});
+addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') gKeys.l = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') gKeys.r = false;
+});
+function stepGame() {
+  if (game.over) return;
+  if (gKeys.l) game.px -= 18;
+  if (gKeys.r) game.px += 18;
+  game.px = Math.max(game.pw / 2 + 10, Math.min(1270 - game.pw / 2, game.px));
+  game.bx += game.vx; game.by += game.vy;
+  if (game.bx < 14 || game.bx > 1266) {
+    game.vx *= -1;
+    game.bx = Math.max(14, Math.min(1266, game.bx));
+    blip(300);
+  }
+  if (game.by < 90) { game.vy *= -1; game.by = 90; blip(300); }
+  /* paddle bounce — angle depends on where the ball lands */
+  if (game.vy > 0 && game.by > 646 && game.by < 672 && Math.abs(game.bx - game.px) < game.pw / 2 + 11) {
+    game.spd = Math.min(game.spd + 0.15, 16);
+    const a = ((game.bx - game.px) / (game.pw / 2)) * 1.05;
+    game.vx = Math.sin(a) * game.spd;
+    game.vy = -Math.cos(a) * game.spd;
+    blip(430);
+  }
+  for (const b of game.bricks) {
+    if (b.hit) continue;
+    if (game.bx > b.x - 11 && game.bx < b.x + b.w + 11 && game.by > b.y - 11 && game.by < b.y + b.h + 11) {
+      b.hit = true;
+      game.score += 10;
+      blip(620);
+      const dx = Math.min(Math.abs(game.bx - (b.x - 11)), Math.abs(game.bx - (b.x + b.w + 11)));
+      const dy = Math.min(Math.abs(game.by - (b.y - 11)), Math.abs(game.by - (b.y + b.h + 11)));
+      if (dx < dy) game.vx *= -1; else game.vy *= -1;
+      break;
+    }
+  }
+  if (game.bricks.every(b => b.hit)) { game.over = 'YOU WIN!'; blip(800); }
+  if (game.by > 730) {
+    game.lives--;
+    blip(150);
+    if (game.lives <= 0) game.over = 'GAME OVER';
+    else { game.bx = game.px; game.by = 500; game.spd = 9; game.vx = 4; game.vy = -8; }
+  }
+}
+function drawGame() {
+  const x = texProjects.userData.canvas.getContext('2d');
+  x.fillStyle = '#14120e'; x.fillRect(0, 0, 1280, 720);
+  x.fillStyle = '#d4513f'; x.fillRect(0, 0, 1280, 6);
+  x.font = '500 26px IBM Plex Mono, monospace';
+  x.fillStyle = '#ece6d8';
+  x.fillText('SCORE ' + game.score, 40, 60);
+  x.textAlign = 'right';
+  x.fillStyle = 'rgba(236,230,216,0.5)';
+  x.fillText('♥'.repeat(Math.max(game.lives, 0)) + '  ·  ← → MOVE · ESC QUIT', 1240, 60);
+  x.textAlign = 'left';
+  game.bricks.forEach(b => {
+    if (!b.hit) { x.fillStyle = b.col; x.fillRect(b.x, b.y, b.w, b.h); }
+  });
+  x.fillStyle = '#ece6d8';
+  x.fillRect(game.px - game.pw / 2, 660, game.pw, 14);
+  x.beginPath(); x.arc(game.bx, game.by, 11, 0, Math.PI * 2); x.fill();
+  if (game.over) {
+    x.fillStyle = 'rgba(20,18,14,0.82)'; x.fillRect(0, 0, 1280, 720);
+    x.textAlign = 'center';
+    x.fillStyle = '#ece6d8'; x.font = '800 90px Syne, sans-serif';
+    x.fillText(game.over, 640, 340);
+    x.font = '400 24px IBM Plex Mono, monospace';
+    x.fillStyle = 'rgba(236,230,216,0.6)';
+    x.fillText('SPACE TO RESTART · ESC TO QUIT', 640, 400);
+    x.textAlign = 'left';
+  }
+  texProjects.needsUpdate = true;
+}
+
+/* ============================================================
+   DRAG TO PEEK — small rubber-banded orbit around the desk
+============================================================ */
+const peek = { on: false, sx: 0, sy: 0, baseYaw: 0, basePitch: 0, yaw: 0, pitch: 0 };
+let suppressClick = false;
+addEventListener('pointerdown', e => {
+  if (mode !== 'home') return;
+  peek.on = true;
+  peek.sx = e.clientX; peek.sy = e.clientY;
+  peek.baseYaw = peek.yaw; peek.basePitch = peek.pitch;
+});
+addEventListener('pointermove', e => {
+  if (!peek.on) return;
+  const dx = e.clientX - peek.sx, dy = e.clientY - peek.sy;
+  if (Math.abs(dx) + Math.abs(dy) > 8) suppressClick = true;
+  peek.yaw = Math.max(-0.22, Math.min(0.22, peek.baseYaw + dx * 0.0012));
+  peek.pitch = Math.max(-0.08, Math.min(0.1, peek.basePitch + dy * 0.0008));
+});
+addEventListener('pointerup', () => {
+  peek.on = false;
+  setTimeout(() => { suppressClick = false; }, 50);
+});
+
+/* ============================================================
+   RENDER LOOP
+============================================================ */
+const LERP = 0.055;
+const _peekOff = new THREE.Vector3();
+const _peekEul = new THREE.Euler();
+function render() {
+  requestAnimationFrame(render);
+  if (document.hidden) return;   /* battery: skip work in background tabs */
+  const now = performance.now();
+
+  if (mode === 'home') {
+    if (!peek.on) { peek.yaw *= 0.94; peek.pitch *= 0.94; }
+    _peekOff.copy(HOME_POS).sub(HOME_TGT).applyEuler(_peekEul.set(peek.pitch, peek.yaw, 0));
+    camera.position.x += (HOME_TGT.x + _peekOff.x + mouseSway.x * 0.04 - camera.position.x) * 0.06;
+    camera.position.y += (HOME_TGT.y + _peekOff.y + mouseSway.y * 0.02 - camera.position.y) * 0.06;
+    camera.position.z += (HOME_TGT.z + _peekOff.z - camera.position.z) * 0.06;
+  }
+  camera.lookAt(camTarget);
+
+  if (gameOn && mode === 'game') { stepGame(); drawGame(); }
+
+  /* ease all day/night values toward the active mode */
+  scene.background.lerp(modeT.bg, LERP);
+  scene.fog.color.copy(scene.background);
+  matWallF.color.lerp(modeT.wallF, LERP);
+  matWallL.color.lerp(modeT.wallL, LERP);
+  matFloor.color.lerp(modeT.floor, LERP);
+  matTrim.color.lerp(modeT.trim, LERP);
+  windowGlowMat.color.lerp(modeT.window, LERP);
+  sun.color.lerp(modeT.sunC, LERP);
+  sun.intensity += (modeT.sunI - sun.intensity) * LERP;
+  hemi.intensity += (modeT.hemiI - hemi.intensity) * LERP;
+  fill.intensity += (modeT.fillI - fill.intensity) * LERP;
+  lampLight.intensity += (modeT.lampI - lampLight.intensity) * LERP;
+  bulbMat.emissiveIntensity += (modeT.bulbE - bulbMat.emissiveIntensity) * LERP;
+  shadeMat.emissiveIntensity += (modeT.shadeE - shadeMat.emissiveIntensity) * LERP;
+  scene.environmentIntensity += (modeT.envI - scene.environmentIntensity) * LERP;
+  dust.material.opacity += (modeT.dustO - dust.material.opacity) * LERP;
+  screenLights.forEach(l => { l.intensity += (modeT.screenL - l.intensity) * LERP; });
+  nightCityMat.opacity += (modeT.winN - nightCityMat.opacity) * LERP;
+  if (amb) amb.master.gain.value += ((soundOn ? 0.9 : 0) - amb.master.gain.value) * 0.03;
+  updateClock();
+
+  const p = dust.geometry.attributes.position;
+  for (let i = 0; i < dustN; i++) {
+    p.array[i * 3 + 1] += 0.0005;
+    if (p.array[i * 3 + 1] > 2.4) p.array[i * 3 + 1] = 0;
+  }
+  p.needsUpdate = true;
+
+  updateChain();
+  pick();
+  renderer.render(scene, camera);
+}
+
+/* screens start dark, then flicker to life one by one */
+screenMats.forEach(m => m.color.setScalar(0.02));
+function bootScreens() {
+  screenMats.forEach((m, i) => {
+    setTimeout(() => {
+      popSound(i);
+      m.color.setScalar(1);
+      setTimeout(() => m.color.setScalar(0.08), 70);
+      setTimeout(() => m.color.setScalar(1), 150);
+      setTimeout(() => m.color.setScalar(0.45), 195);
+      setTimeout(() => m.color.setScalar(1), 250);
+    }, 700 + i * 420);
+  });
+}
+
+/* typing ticker + clock refresh on the main monitor */
+setInterval(() => {
+  if (document.hidden || gameOn) return;
+  typedChar++;
+  const line = CODE_LINES[typedLine];
+  if (typedChar > line.length + 14) {
+    typedChar = 0;
+    typedLine = (typedLine + 1) % CODE_LINES.length;
+  } else if (typedChar <= line.length) {
+    /* a real character just appeared — click in sync (space = soft thock) */
+    playKey(line[typedChar - 1] === ' ');
+  }
+  texProjects.userData.redraw();
+}, 110);
+
+const veil = document.getElementById('veil');
+render();
+setTimeout(() => {
+  veil.style.opacity = 0;
+  flyTo(HOME_POS, HOME_TGT, 2200, () => { mode = 'home'; });
+  bootScreens();
+  setTimeout(() => veil.remove(), 1000);
+}, 450);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+} /* end bootDesk */
+</script>
+</body>
+</html>
