@@ -384,6 +384,15 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /* ============================================================
+   ANALYTICS — Pendo Track Events (no-op if the agent isn't loaded)
+============================================================ */
+function trackEvent(name, props) {
+  try {
+    if (window.pendo && typeof window.pendo.track === 'function') window.pendo.track(name, props);
+  } catch (err) { /* tracking must never break the desk */ }
+}
+
+/* ============================================================
    MOBILE FALLBACK — phones get the sections as a plain page
 ============================================================ */
 const IS_MOBILE = (matchMedia('(pointer: coarse)').matches && innerWidth < 920) || innerWidth < 720;
@@ -391,12 +400,26 @@ function showPlainPage() {
   document.body.classList.add('mobile');
   document.getElementById('veil')?.remove();
 }
+/* records why the 3D desk was skipped (mobile viewport or WebGL / scene failure) */
+function trackFallback(reason, err) {
+  trackEvent('desk_fallback_rendered', {
+    reason,
+    error_message: err ? String(err.message || err).slice(0, 100) : '',
+    viewport_width: innerWidth,
+    pointer_coarse: matchMedia('(pointer: coarse)').matches,
+  });
+}
 if (IS_MOBILE) {
   showPlainPage();
+  trackFallback('mobile');
 } else {
   /* if WebGL or scene init fails, degrade to the readable plain page — never a blank screen */
   try { bootDesk(); }
-  catch (e) { console.warn('3D scene unavailable, falling back to plain page:', e); showPlainPage(); }
+  catch (e) {
+    console.warn('3D scene unavailable, falling back to plain page:', e);
+    showPlainPage();
+    trackFallback('webgl_error', e);
+  }
 }
 
 function bootDesk() {
@@ -1636,6 +1659,12 @@ function toggleNight() {
   isNight = !isNight;
   modeT = isNight ? NIGHT : DAY;
   document.body.classList.toggle('night', isNight);
+  /* lamp chain pulled — the new mode only exists in JS state */
+  trackEvent('room_mode_toggled', {
+    new_mode: isNight ? 'night' : 'day',
+    starting_mode: STARTING_MODE,
+    local_hour: new Date().getHours(),
+  });
 }
 /* visiting after 7pm (or before 7am)? start in night mode */
 {
@@ -1646,6 +1675,8 @@ function toggleNight() {
     document.body.classList.add('night');
   }
 }
+/* the mode the room loaded in, so toggles show whether the auto night mode was overridden */
+const STARTING_MODE = isNight ? 'night' : 'day';
 
 /* ============================================================
    TWEENS
@@ -1729,6 +1760,7 @@ addEventListener('click', () => {
 const backBtn = document.getElementById('back');
 function enterSection(id) {
   const s = sections[id];
+  const label = hovered ? hovered.userData.label : id;
   mode = 'flying';
   setHover(null);
   document.body.classList.add('in-section');
@@ -1738,6 +1770,8 @@ function enterSection(id) {
     backBtn.classList.remove('tuck');
     panel.classList.add('open');
     mode = 'section';
+    /* camera landed and the panel is open — record which screen the visitor chose */
+    trackEvent('desk_section_opened', { section: id, label, entry_point: 'screen_click' });
   });
 }
 function exitSection() {
@@ -1773,17 +1807,35 @@ function resetGame() {
   game.bx = 640; game.by = 500; game.spd = 9;
   game.vx = 4; game.vy = -8;
   game.score = 0; game.lives = 3; game.over = '';
+  game.startedAt = performance.now(); game.ended = false;
   game.bricks = [];
   const cols = ['#d4513f', '#b8862e', '#2e7d5b', '#2f5fa8'];
   for (let r = 0; r < 4; r++)
     for (let c = 0; c < 8; c++)
       game.bricks.push({ x: 80 + c * 142, y: 120 + r * 44, w: 126, h: 32, col: cols[r], hit: false });
 }
+function trackGameStart(trigger) {
+  trackEvent('breakout_game_started', { trigger, is_night: isNight });
+}
+/* reports a game's outcome once — win, loss, or quit */
+function trackGameEnd(outcome) {
+  if (game.ended) return;
+  game.ended = true;
+  trackEvent('breakout_game_ended', {
+    outcome,
+    score: game.score,
+    bricks_cleared: game.bricks.filter(b => b.hit).length,
+    bricks_total: game.bricks.length,
+    lives_remaining: Math.max(game.lives, 0),
+    duration_ms: Math.round(performance.now() - game.startedAt),
+  });
+}
 function startGame() {
   resetGame();
   gameOn = true;
   mode = 'flying';
   setHover(null);
+  trackGameStart('controller_click');
   const s = sections.projects;
   flyTo(s.camTgt.clone().add(new THREE.Vector3(0, 0, 0.95)), s.camTgt, 1100, () => { mode = 'game'; });
 }
@@ -1808,8 +1860,14 @@ addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' || e.key === 'd') gKeys.r = true;
   if (mode !== 'game') return;
   if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-  if (e.key === 'Escape') endGame();
-  if (game.over && (e.key === ' ' || e.key === 'Enter')) resetGame();
+  if (e.key === 'Escape') {
+    if (!game.over) trackGameEnd('quit');
+    endGame();
+  }
+  if (game.over && (e.key === ' ' || e.key === 'Enter')) {
+    resetGame();
+    trackGameStart('restart_key');
+  }
 });
 addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a') gKeys.l = false;
@@ -1847,11 +1905,11 @@ function stepGame() {
       break;
     }
   }
-  if (game.bricks.every(b => b.hit)) { game.over = 'YOU WIN!'; blip(800); }
+  if (game.bricks.every(b => b.hit)) { game.over = 'YOU WIN!'; blip(800); trackGameEnd('win'); }
   if (game.by > 730) {
     game.lives--;
     blip(150);
-    if (game.lives <= 0) game.over = 'GAME OVER';
+    if (game.lives <= 0) { game.over = 'GAME OVER'; trackGameEnd('loss'); }
     else { game.bx = game.px; game.by = 500; game.spd = 9; game.vx = 4; game.vy = -8; }
   }
 }
